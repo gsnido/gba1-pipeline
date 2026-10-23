@@ -100,10 +100,30 @@ bash LONG-NEXT.sh examples/ids.txt examples/fastqfiles/ \
   4
 ```
 
-Repair the script, check it with `bash -n LONG-NEXT.sh`, and run a known
-sample. Then verify that containerized execution reproduces the same variant
-records, genotypes, FILTER labels, and coverage metrics. Syntax validation
-alone does not establish correct execution or analytical validity.
+## Docker image
+
+It is possible to build a Docker image:
+
+```bash
+# Compile image (requires access to the internet)
+docker build -t gba1-pipeline:dev .
+
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$PWD/examples/ids.txt,dst=/input/sample_ids.txt,readonly" \
+  --mount "type=bind,src=$PWD/examples/fastqfiles,dst=/input/fastqfiles,readonly" \
+  --mount "type=bind,src=$PWD/references,dst=/references,readonly" \
+  --mount "type=bind,src=$PWD/examples/results,dst=/output" \
+  --workdir /output \
+  gba1-pipeline:dev \
+  LONG-NEXT \
+    /input/sample_ids.txt \
+    /input/fastqfiles \
+    /references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.GBA1LP_masked.fa \
+    /opt/gba1/GBA1.bed \
+    /output \
+    4
+```
 
 ## Reference preparation
 
@@ -121,5 +141,12 @@ gcloud storage cp gs://gcp-public-data--broad-references/Homo_sapiens_assembly38
 bash PREPARE_REF.sh references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.fasta bedfiles/GBA1LP.bed
 ```
 
+
+## TO DO
+
+1. Consider modifying the LONG-NEXT.sh script to analyse a single file to relax
+   the requirement of a text file with IDs. Really annoying for Docker.
+2. Make a much smaller Docker image
+3. Create the structural variant caller
 
 
