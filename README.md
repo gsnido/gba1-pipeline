@@ -118,7 +118,7 @@ gcloud storage cp gs://gcp-public-data--broad-references/Homo_sapiens_assembly38
 
 ```bash
 # Mask pseudogene
-bash PREPARE_REF.sh /references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.fasta bedfiles/GBA1LP.bed
+bash PREPARE_REF.sh references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.fasta bedfiles/GBA1LP.bed
 ```
 
 
