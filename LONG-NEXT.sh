@@ -95,7 +95,7 @@ run_bwa_alignment() {
     echo "$out_bam"
 }
 
-# check_gba1_depth <sample_id> <bam> <gba1_region_bed> <min_depth>
+# check_gba1_depth <sample_id> <bam> <gba1_region_bed> <min_depth> <output_dir>
 # Computes mean read depth over the GBA1 region and flags samples below
 # the LONG-NEXT minimum depth threshold (500x) as possible ADO events.
 check_gba1_depth() {
@@ -103,13 +103,14 @@ check_gba1_depth() {
     local bam="$2"
     local gba1_region_bed="$3"
     local min_depth="$4"
+    local out_dir="$5"
 
     local mean_depth
     mean_depth="$(samtools depth -a -b "$gba1_region_bed" "$bam" \
         | awk '{sum+=$3; n++} END {if (n>0) printf "%.1f", sum/n; else print "0"}')"
 
     echo "Sample '${sample_id}': mean GBA1 depth = ${mean_depth}x" >&2
-    echo "Sample '${sample_id}': mean GBA1 depth = ${mean_depth}x" >> ./log_GBA1_depth.txt
+    echo "Sample '${sample_id}': mean GBA1 depth = ${mean_depth}x" >> "${out_dir}/log_GBA1_depth.txt"
 
     if awk -v d="$mean_depth" -v m="$min_depth" 'BEGIN{exit !(d<m)}'; then
         echo "WARNING: sample '${sample_id}' mean depth (${mean_depth}x) is below the ${min_depth}x threshold." >&2
@@ -234,7 +235,7 @@ while IFS= read -r raw_id || [[ -n "$raw_id" ]]; do
     fi
 
     bam="$(run_bwa_alignment "$sanitized_id" "$r1" "$r2" "$MASKED_REFERENCE" "$OUT_DIR" "$THREADS")"
-    check_gba1_depth "$sanitized_id" "$bam" "$GBA1_REGION_BED" "$MIN_DEPTH" >/dev/null
+    check_gba1_depth "$sanitized_id" "$bam" "$GBA1_REGION_BED" "$MIN_DEPTH" "$OUT_DIR" >/dev/null
     gvcf="$(call_variants_gatk4 "$sanitized_id" "$bam" "$MASKED_REFERENCE" "$GBA1_REGION_BED" "$OUT_DIR")"
     filter_variants "$sanitized_id" "$gvcf" "$MASKED_REFERENCE" "$OUT_DIR" >/dev/null
 

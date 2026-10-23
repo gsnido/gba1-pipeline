@@ -55,8 +55,8 @@ skipped; __multi-lane inputs must be consolidated beforehand__.
 Example command:
 ```bash
 bash LONG-NEXT.sh examples/ids.txt examples/fastqfiles/ \
-  /references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.GBA1LP_masked.fa \
-  GBA1.bed \
+  references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.GBA1LP_masked.fa \
+  bedfiles/GBA1.bed \
   examples/results \
   4
 ```
@@ -87,8 +87,8 @@ dropout or recombination.
 
 The output directory contains sorted/indexed BAMs, gVCFs, genotyped VCFs,
 intermediate hard-filtered VCFs, and `<sample>.final_filtered.vcf.gz` with its
-tabix index. The depth log is written to `log_GBA1_depth.txt` in the working
-directory, not the output directory. Progress messages are written to stderr.
+tabix index. The depth log is written to `log_GBA1_depth.txt` in the output
+directory. Progress messages are written to stderr.
 
 ## Run an example
 
