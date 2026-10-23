@@ -108,6 +108,7 @@ It is possible to build a Docker image:
 # Compile image (requires access to the internet)
 docker build -t gba1-pipeline:dev .
 
+# Test with commercial positive control sample
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --mount "type=bind,src=$PWD/examples/ids.txt,dst=/input/sample_ids.txt,readonly" \
@@ -124,6 +125,14 @@ docker run --rm \
     /output \
     4
 ```
+
+To save the image into a tar:
+
+```bash
+docker save --output="image_name.tar" id_image
+docker load --input image_name.tar
+```
+
 
 ## Reference preparation
 
@@ -145,8 +154,12 @@ bash PREPARE_REF.sh references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.fasta
 ## TO DO
 
 1. Consider modifying the LONG-NEXT.sh script to analyse a single file to relax
-   the requirement of a text file with IDs. Really annoying for Docker.
-2. Make a much smaller Docker image
-3. Create the structural variant caller
+   the requirement of a text file with IDs. Really annoying for Docker. Also,
+   there is a script (CHECK_IDS.sh) that should probably be deleted since it's
+   not used. Yet, also at this stage we should test wheter there are several
+   pairs of files compatible with the ID and decide whether to consolidate
+   fastq files from different lanes or exit with error.
+2. Test the JOINT_GENOTYPING script.
+3. Create the structural variant caller.
 
 
