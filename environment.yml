@@ -11,3 +11,4 @@ dependencies:
   - samtools=1.24
   - gatk4-lite=4.7.0.0
   - bcftools=1.24
+  - delly=2.8.2

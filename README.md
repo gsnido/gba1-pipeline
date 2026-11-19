@@ -2,14 +2,16 @@
 
 Bash pipeline for SNV and small-indel calling from paired-end sequencing of
 PCR-amplified GBA1. It implements the tailored bioinformatic analysis of the
-LONG-NEXT method (Cuconato et al., 2025). It does not perform
-structural-variant calling.
+LONG-NEXT method (Cuconato et al., 2025). Structural-variant and
+recombinant-allele screening is provided separately by `LONG-NEXT-SV.sh`
+(see "Structural variants and recombinant alleles" below).
 
 
 ## Requirements
 
 - Bash and standard Unix utilities, including awk and find.
 - BWA, SAMtools, GATK4 (with a compatible Java runtime), and BCFtools.
+- Delly (>= 1.2; `delly sr`) for `LONG-NEXT-SV.sh`.
 - An hg38 reference FASTA with GBA1LP already masked, plus the BWA indexes, FASTA index, and GATK sequence dictionary. See section "Reference preparation" below.
 - A GBA1 target-region BED file matching the reference assembly and contig names.
 
@@ -100,6 +102,50 @@ bash LONG-NEXT.sh examples/ids.txt examples/fastqfiles/ \
   4
 ```
 
+## Structural variants and recombinant alleles
+
+`LONG-NEXT-SV.sh` runs after `LONG-NEXT.sh` and reuses its
+`<sample>.sorted.bam` files (no realignment):
+
+```bash
+bash LONG-NEXT-SV.sh \
+  examples/ids.txt \
+  examples/results \
+  references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.GBA1LP_masked.fa \
+  bedfiles/GBA1_GBA1LP_PSVs.hg38.tsv \
+  examples/results \
+  4
+```
+
+Arguments: sample ID list, LONG-NEXT.sh output directory (BAMs), masked
+reference, PSV table, output directory and optional threads.
+
+All analyses are restricted to the LONG-NEXT amplicon
+(chr1:155,234,915-155,241,415, hg38; defined by the published primers):
+
+| Evidence | Method | Output (`<sample>_SV/`) |
+|---|---|---|
+| SV calls (DEL/DUP/INV/INS/BND) | Delly short-read mode; extra FILTER labels `AMPLICON_EDGE` (breakpoint < 300 bp from an amplicon end) and `LOW_SUPPORT` (supporting fraction < 0.05) | `<sample>.delly.sv.vcf.gz` |
+| Mid-sized indels and junctions | CIGAR indels >= 30 bp and split-read (SA tag) junctions with >= 10 reads and >= 5% of local depth; `c.1263_1317del` (Rec(delta55)) is labelled | `<sample>.alignment_events.tsv` |
+| Gene conversion / recombinant tracts | Allele counts at 134 GBA1/GBA1LP paralogous sequence variants (PSVs); runs of >= 2 consecutive PSVs with GBA1LP-allele fraction >= 0.15 are reported as tracts (`HET_LIKE`, `HOM_LIKE`, `LOW_FRACTION`, `UNBALANCED`) and whether they reach the 3' end (fusion/RecNciI-type) | `<sample>.psv_counts.tsv`, `<sample>.psv_tracts.tsv` |
+| Depth profile | 100 bp bins normalised to the sample median; with >= 3 samples, ratio to the cohort median and runs of >= 3 bins < 0.6 or > 1.5 | `<sample>.depth_profile.tsv`, `SV_cohort_depth_*.tsv` |
+
+`SV_summary.tsv` has one line per sample with the counts of PASS
+calls/events/tracts and a `review` column.
+
+The PSV table (`bedfiles/GBA1_GBA1LP_PSVs.hg38.tsv`) was derived by tiling the
+hg38 GBA1LP interval (`bedfiles/GBA1LP.bed`) onto the masked reference; the
+derivation is described in the file header. Because the hg38 GBA1LP sequence
+matches GBA1 at c.1483 and c.1497, the RecNciI markers c.1483G>C (A456P) and
+c.1497G>C (V460V) were added explicitly as `known_marker`.
+
+Limitations: only events inside the amplicon and compatible with the primer
+design are visible. Events removing a primer site (e.g. some reciprocal
+recombinants or large deletions) are not amplified and appear as allele
+dropout. PCR favours shorter alleles, so deletion-allele fractions may be
+inflated. Copy number cannot be inferred from amplicons; confirm any flag
+with MLPA or long-read sequencing.
+
 ## Docker image
 
 It is possible to build a Docker image:
@@ -160,6 +206,7 @@ bash PREPARE_REF.sh references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.fasta
    pairs of files compatible with the ID and decide whether to consolidate
    fastq files from different lanes or exit with error.
 2. Test the JOINT_GENOTYPING script.
-3. Create the structural variant caller.
+3. Validate `LONG-NEXT-SV.sh` on samples with known recombinant alleles and
+   deletions (thresholds were tuned on simulated data and one positive control).
 
 
