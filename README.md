@@ -114,11 +114,13 @@ bash LONG-NEXT-SV.sh \
   references/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.GBA1LP_masked.fa \
   bedfiles/GBA1_GBA1LP_PSVs.hg38.tsv \
   examples/results \
-  4
+  4 \
+  [reliable_sites]
 ```
 
 Arguments: sample ID list, LONG-NEXT.sh output directory (BAMs), masked
-reference, PSV table, output directory and optional threads.
+reference, PSV table, output directory, optional threads and an optional
+`reliable_sites` file (see below).
 
 All analyses are restricted to the LONG-NEXT amplicon
 (chr1:155,234,915-155,241,415, hg38; defined by the published primers):
@@ -128,10 +130,72 @@ All analyses are restricted to the LONG-NEXT amplicon
 | SV calls (DEL/DUP/INV/INS/BND) | Delly short-read mode; extra FILTER labels `AMPLICON_EDGE` (breakpoint < 300 bp from an amplicon end) and `LOW_SUPPORT` (supporting fraction < 0.05) | `<sample>.delly.sv.vcf.gz` |
 | Mid-sized indels and junctions | CIGAR indels >= 30 bp and split-read (SA tag) junctions with >= 10 reads and >= 5% of local depth; `c.1263_1317del` (Rec(delta55)) is labelled | `<sample>.alignment_events.tsv` |
 | Gene conversion / recombinant tracts | Allele counts at 134 GBA1/GBA1LP paralogous sequence variants (PSVs); runs of >= 2 consecutive PSVs with GBA1LP-allele fraction >= 0.15 are reported as tracts (`HET_LIKE`, `HOM_LIKE`, `LOW_FRACTION`, `UNBALANCED`) and whether they reach the 3' end (fusion/RecNciI-type) | `<sample>.psv_counts.tsv`, `<sample>.psv_tracts.tsv` |
+| Phasing and named recombinant alleles | Read-backed phasing of heterozygous PSVs and the c.1263del55 site (mates merged into fragments); alleles named per haplotype from the marker set (table below) | `<sample>.phase_links.tsv`, `<sample>.phased_haplotypes.tsv`, `<sample>.recombinant_alleles.tsv` |
 | Depth profile | 100 bp bins normalised to the sample median; with >= 3 samples, ratio to the cohort median and runs of >= 3 bins < 0.6 or > 1.5 | `<sample>.depth_profile.tsv`, `SV_cohort_depth_*.tsv` |
 
 `SV_summary.tsv` has one line per sample with the counts of PASS
-calls/events/tracts and a `review` column.
+calls/events/tracts, the markers found inside tracts, the named
+`recombinant_alleles` (e.g. `RecNciI/no_marker`), the `phasing` status and a
+`review` column.
+
+### Phasing and named alleles
+
+Each primary read records the GBA1 or GBA1LP allele at every PSV
+(base quality >= `MIN_BASEQ`). The c.1263del55 site counts as one extra
+biallelic site: GBA1LP-like if the read carries a ~55 bp deletion there and
+GBA1-like if it spans the region without one. Both mates are merged into one
+fragment. Consecutive heterozygous sites are linked when >= `PHASE_MIN_LINKS`
+(10) fragments cover both. A link is `CIS` if >= `PHASE_MIN_CIS` (0.80) of
+fragments are GBA1LP-GBA1LP or GBA1-GBA1, `TRANS` if <= 0.20 and `AMBIGUOUS`
+otherwise. `AMBIGUOUS` or missing links split phase blocks. Homozygous
+GBA1LP-like sites are added to both haplotypes.
+
+Haplotypes are named from the markers they carry, following the allele
+definitions used by Gauchian ([Toffoli et al., Commun Biol 2022](https://www.nature.com/articles/s42003-022-03610-7)):
+
+| Markers on the haplotype (HGVS, legacy) | Named allele |
+|---|---|
+| c.1263del55 + D448H + L483P + A495P + V499= | `c.1263del55+RecTL` |
+| D448H (D409H) + L483P (L444P) + A495P (A456P) + V499= (V460V) | `RecTL` |
+| L483P + A495P + V499= | `RecNciI` |
+| A495P + V499= | `RecA456P` |
+| a single marker | that variant (e.g. `p.L483P`, `c.1263del55`) |
+| no marker | `no_marker` |
+| any other combination | `complex(...)` |
+
+Marker positions (hg38): c.1263del55 starts at chr1:155,235,750, D448H
+155,235,727, L483P 155,235,252, A495P 155,235,217, V499= 155,235,203.
+
+The `phasing` column is `PHASED` when two or more heterozygous markers fall in
+one phase block, `NOT_REQUIRED` when the call does not depend on phasing (no
+marker, a single heterozygous marker or only homozygous markers) and
+`UNPHASED` when heterozygous markers fall in different blocks. In that case
+the call is `unphased(<markers>)`. `recombinant_alleles.tsv` also reports the
+weakest link along the phased chain (`min_link_fragments`) and markers without
+coverage (`markers_not_assessed`). With 2x150 bp reads the c.1263del55 site
+(about 500 bp from L483P) is phased through fragments spanning the insert, so
+fragment counts across that link are lower.
+
+Example calls on simulated data and the positive control:
+
+| Sample | `recombinant_alleles` | `phasing` |
+|---|---|---|
+| Positive control | `RecNciI/no_marker` | `PHASED` |
+| Heterozygous RecTL | `RecTL/no_marker` | `PHASED` |
+| L483P in trans with RecA456P | `RecA456P/p.L483P` | `PHASED` (TRANS link) |
+| Homozygous RecNciI | `RecNciI/RecNciI` | `NOT_REQUIRED` |
+
+### Reliable sites (optional)
+
+The optional 7th argument is a whitespace-separated file whose first two
+columns are chromosome and hg38 position, for example Gauchian's
+`gauchian/data/GBA_SNP_38.txt`. Matching PSVs are flagged in
+`psv_counts.tsv` (`reliable_site`) and counted in `psv_tracts.tsv`
+(`n_reliable_psvs`); calls are not changed. The Gauchian file is not bundled
+because Gauchian is released under the PolyForm Strict 1.0.0 licence. Only
+34 of its 83 hg38 sites lie inside the amplicon and 31 of those are already
+in the bundled table. The other 3 are the c.1263del55 boundaries (handled by
+the deletion site) and an indel PSV.
 
 The PSV table (`bedfiles/GBA1_GBA1LP_PSVs.hg38.tsv`) was derived by tiling the
 hg38 GBA1LP interval (`bedfiles/GBA1LP.bed`) onto the masked reference; the
@@ -139,7 +203,8 @@ derivation is described in the file header. Because the hg38 GBA1LP sequence
 matches GBA1 at c.1483 and c.1497, the RecNciI markers c.1483G>C (A456P) and
 c.1497G>C (V460V) were added explicitly as `known_marker`.
 
-Limitations: only events inside the amplicon and compatible with the primer
+Limitations: phasing relies on fragments covering consecutive heterozygous
+sites, so long PSV-free stretches can split blocks. Only events inside the amplicon and compatible with the primer
 design are visible. Events removing a primer site (e.g. some reciprocal
 recombinants or large deletions) are not amplified and appear as allele
 dropout. PCR favours shorter alleles, so deletion-allele fractions may be
